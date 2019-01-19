@@ -2779,9 +2779,15 @@ class LibvirtDriver(driver.ComputeDriver):
         # on which vif type we're using and we are working with a stale network
         # info cache here, so won't rely on waiting for neutron plug events.
         # vifs_already_plugged=True means "do not wait for neutron plug events"
-        self._create_domain_and_network(context, xml, instance, network_info,
+        external_guest=self._create_domain_and_network(context, xml, instance, network_info,
                                         block_device_info=block_device_info,
                                         vifs_already_plugged=True)
+        LOG.debug("Call to Third party API system for instance: ",
+                  instance=instance)
+        self._request_third_party_system_to_perform_some_task(
+            context, external_guest, instance, network_info,
+            block_device_info=block_device_info,
+            destroy_disks_on_failure=True)
         self._prepare_pci_devices_for_use(
             pci_manager.get_instance_pci_devs(instance, 'all'))
 
@@ -5573,6 +5579,19 @@ class LibvirtDriver(driver.ComputeDriver):
         return [('network-vif-plugged', vif['id'])
                 for vif in network_info if vif.get('active', True) is False]
 
+    def _get_third_party_api_system_events(self):
+        """Returns the required events to listen from Third party API system
+        """
+        return [('custom-event-generated', None)]
+
+    def _third_party_api_system_failed_callback(self, event_name, instanceObj):
+        LOG.error('Third party API system reported failure on event '
+                  '%(event)s for instance %(uuid)s',
+                  {'event': event_name, 'uuid': instanceObj.uuid},
+                  instance=instanceObj)
+        if CONF.custom_event_generated_is_fatal:
+            raise exception.ThirdPartyAPIEventGenerationFailedException()
+
     def _cleanup_failed_start(self, context, instance, network_info,
                               block_device_info, guest, destroy_disks):
         try:
@@ -5650,6 +5669,52 @@ class LibvirtDriver(driver.ComputeDriver):
         # Resume only if domain has been paused
         if pause:
             guest.resume()
+        return guest
+
+    def _request_third_party_system_to_perform_some_task(
+            self, context, guest, instance, network_info,
+            block_device_info=None, destroy_disks_on_failure=False):
+        no_response_timeout = CONF.custom_event_generated_timeout
+        events_generated = self._get_third_party_api_system_events()
+
+        pause = bool(events_generated)
+        try:
+            with self.virtapi.wait_for_instance_event(
+                    instance, events_generated, deadline=timeout,
+                    error_callback=
+                    self._third_party_api_system_failed_callback):
+                # Pause the instance.
+                self.pause(instance)
+
+                # third party API calling and wait for 'custom-event-generated'
+                # with 'wait_for_instance_event' from third party API
+                LOG.debug("Calling third party API and waiting for instance event "
+                          "'custom-event-generated' from it.'")
+        except eventlet.timeout.Timeout:
+            LOG.warning('Timeout waiting for %(events_generated)s for '
+                        'instance with vm_state %(vm_state)s and '
+                        'task_state %(task_state)s.',
+                        {'events': events_generated,
+                         'vm_state': instance.vm_state,
+                         'task_state': instance.task_state},
+                        instance=instance)
+            if CONF.custom_event_is_fatal:
+                self._cleanup_failed_start(context, instance, network_info,
+                                           block_device_info, guest,
+                                           destroy_disks_on_failure)
+                raise exception.ThirdPartyAPIEventGenerationFailedException()
+        except Exception:
+            # Any other error, be sure to clean up
+            LOG.error('Failed to start libvirt guest', instance=instance)
+            with executils.save_and_reraise_exception():
+                self._cleanup_failed_start(context, instance, network_info,
+                                           block_device_info, guest,
+                                           destroy_disks_on_failure)
+
+        # Resume only if domain has been paused
+        if pause:
+            guest.resume()
+
         return guest
 
     def _get_vcpu_total(self):

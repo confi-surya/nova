@@ -12615,6 +12615,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             mock.patch('nova.virt.libvirt.driver.libvirt'),
             mock.patch.object(drvr, '_build_device_metadata'),
             mock.patch.object(drvr, 'get_info'),
+            mock.patch.object(
+                drvr, '_request_third_party_system_to_perform_some_task'),
             mock.patch.object(drvr.firewall_driver, 'setup_basic_filtering'),
             mock.patch.object(drvr.firewall_driver, 'prepare_instance_filter')
         ) as (
@@ -12622,6 +12624,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             mock_orig_libvirt,
             mock_build_device_metadata,
             mock_get_info,
+            mock_third_party_api,
             mock_ignored, mock_ignored
         ):
             self.flags(instances_path=tmpdir)
@@ -12643,6 +12646,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_guest_xml')
     @mock.patch.object(libvirt_driver.LibvirtDriver,
                        '_create_domain_and_network')
+    @mock.patch.object(libvirt_driver.LibvirtDriver,
+                       '_request_third_party_system_to_perform_some_task')
     @mock.patch.object(libvirt_driver.LibvirtDriver, 'get_info')
     # Methods called by _create_configdrive via post_xml_callback
     @mock.patch('nova.virt.configdrive.ConfigDriveBuilder._make_iso9660')
@@ -12650,6 +12655,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
     @mock.patch.object(instance_metadata, 'InstanceMetadata')
     def test_spawn_with_config_drive(self, mock_instance_metadata,
                                      mock_build_device_metadata,
+                                     mock_third_party_api,
                                      mock_mkisofs, mock_get_info,
                                      mock_create_domain_and_network,
                                      mock_get_guest_xml):
@@ -12699,6 +12705,9 @@ class LibvirtConnTestCase(test.NoDBTestCase,
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
                       '_create_domain_and_network',
                       lambda *a, **kw: None)
+        self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
+                      '_request_third_party_system_to_perform_some_task',
+                      lambda *a, **kw: None)
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.get_info',
                       lambda self, instance: hardware.InstanceInfo(
                           state=power_state.RUNNING))
@@ -12725,10 +12734,12 @@ class LibvirtConnTestCase(test.NoDBTestCase,
         with test.nested(
                 mock.patch.object(drvr, '_get_guest_xml'),
                 mock.patch.object(drvr, '_create_domain_and_network'),
+                mock.patch.object(
+                    drvr, '_request_third_party_system_to_perform_some_task'),
                 mock.patch.object(drvr, 'get_info')
         ) as (
                 mock_get_guest_xml, mock_create_domain_and_network,
-                mock_get_info
+                mock_get_info, mock_third_party_api
         ):
             hw_running = hardware.InstanceInfo(state=power_state.RUNNING)
             mock_get_info.return_value = hw_running
@@ -12839,6 +12850,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
         drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
         with test.nested(
             mock.patch.object(drvr, 'plug_vifs'),
+            mock.patch.object(
+                drvr, '_request_third_party_system_to_perform_some_task'),
             mock.patch.object(drvr.firewall_driver, 'setup_basic_filtering'),
             mock.patch.object(drvr.firewall_driver, 'prepare_instance_filter'),
             mock.patch.object(drvr.firewall_driver, 'apply_instance_filter'),
@@ -12885,6 +12898,9 @@ class LibvirtConnTestCase(test.NoDBTestCase,
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
                       '_create_domain_and_network',
                       lambda *args, **kwargs: None)
+        self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
+                      '_request_third_party_system_to_perform_some_task',
+                      lambda *args, **kwargs: None)
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.get_info',
                       lambda self, instance: hardware.InstanceInfo(
                           state=power_state.RUNNING))
@@ -12919,6 +12935,9 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                       lambda *args, **kwargs: None)
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
                       '_create_domain_and_network',
+                      lambda *args, **kwargs: None)
+        self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.'
+                      '_request_third_party_system_to_perform_some_task',
                       lambda *args, **kwargs: None)
         self.stub_out('nova.virt.libvirt.driver.LibvirtDriver.get_info',
                       lambda self, instance: hardware.InstanceInfo(
@@ -12997,6 +13016,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
         with test.nested(
             mock.patch.object(driver, '_get_guest_xml'),
             mock.patch.object(driver, '_create_domain_and_network'),
+            mock.patch.object(
+                driver, '_request_third_party_system_to_perform_some_task'),
             mock.patch.object(driver, 'get_info',
               return_value=[hardware.InstanceInfo(state=power_state.RUNNING)])
         ):
@@ -13248,10 +13269,13 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             mock.patch.object(utils, 'execute'),
             mock.patch.object(drvr, 'get_info'),
             mock.patch.object(drvr, '_create_domain_and_network'),
+            mock.patch.object(
+                drvr, '_request_third_party_system_to_perform_some_task'),
             mock.patch.object(imagebackend.Image, 'verify_base_size'),
             mock.patch.object(imagebackend.Image, 'get_disk_size')
         ) as (execute_mock, get_info_mock,
-              create_mock, verify_base_size_mock, disk_size_mock):
+              create_mock, mock_third_party_api,
+              verify_base_size_mock, disk_size_mock):
             disk_size_mock.return_value = 0
             self.assertRaises(exception.InvalidBDMFormat, drvr._create_image,
                               context, instance, disk_info['mapping'],
@@ -13947,6 +13971,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                                                  instance, [], None)
 
     @mock.patch('nova.virt.libvirt.LibvirtDriver.get_info')
+    @mock.patch('nova.virt.libvirt.LibvirtDriver.'
+                '_request_third_party_system_to_perform_some_task')
     @mock.patch('nova.virt.libvirt.LibvirtDriver._create_domain_and_network')
     @mock.patch('nova.virt.libvirt.LibvirtDriver._get_guest_xml')
     @mock.patch('nova.virt.libvirt.LibvirtDriver.'
@@ -13956,6 +13982,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                 '_get_all_assigned_mediated_devices')
     def test_hard_reboot(self, mock_get_mdev, mock_destroy, mock_get_disk_info,
                          mock_get_guest_xml, mock_create_domain_and_network,
+                         mock_request_third_party_system_to_perform_some_task,
                          mock_get_info):
         self.context.auth_token = True  # any non-None value will suffice
         instance = objects.Instance(**self.test_instance)
@@ -14022,6 +14049,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
     @mock.patch('nova.pci.manager.get_instance_pci_devs')
     @mock.patch('nova.virt.libvirt.LibvirtDriver._prepare_pci_devices_for_use')
     @mock.patch('nova.virt.libvirt.LibvirtDriver._create_domain_and_network')
+    @mock.patch('nova.virt.libvirt.LibvirtDriver.'
+                '_request_third_party_system_to_perform_some_task')
     @mock.patch('nova.virt.libvirt.LibvirtDriver._create_images_and_backing')
     @mock.patch('nova.virt.libvirt.LibvirtDriver.'
                 '_get_instance_disk_info_from_config')
@@ -14036,7 +14065,9 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             mock_get_mdev, mock_destroy, mock_get_disk_info,
             mock_get_guest_config, mock_get_instance_path, mock_write_to_file,
             mock_get_instance_disk_info, mock_create_images_and_backing,
-            mock_create_domand_and_network, mock_prepare_pci_devices_for_use,
+            mock_create_domand_and_network,
+            mock_request_third_party_system_to_perform_some_task,
+            mock_prepare_pci_devices_for_use,
             mock_get_instance_pci_devs, mock_looping_call, mock_ensure_tree):
         """For a hard reboot, we shouldn't need an additional call to glance
         to get the image metadata.
@@ -14356,6 +14387,9 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                               return_value=dummyxml),
             mock.patch.object(drvr, '_create_domain_and_network',
                               return_value=guest),
+            mock.patch.object(
+                drvr, '_request_third_party_system_to_perform_some_task',
+                return_value=guest),
             mock.patch.object(drvr, '_attach_pci_devices'),
             mock.patch.object(pci_manager, 'get_instance_pci_devs',
                               return_value='fake_pci_devs'),
@@ -14363,7 +14397,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             mock.patch.object(guest, 'sync_guest_time'),
             mock.patch.object(drvr, '_wait_for_running',
                               side_effect=loopingcall.LoopingCallDone()),
-        ) as (_get_existing_domain_xml, _create_domain_and_network,
+        ) as (_get_existing_domain_xml, _mock_third_party_api,
+              _create_domain_and_network,
               _attach_pci_devices, get_instance_pci_devs, get_image_metadata,
               mock_sync_time, mock_wait):
             get_image_metadata.return_value = {'bar': 234}
@@ -16179,6 +16214,8 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                               return_value=False),
             mock.patch.object(drvr, '_create_domain'),
             mock.patch.object(drvr, 'plug_vifs'),
+            mock.patch.object(
+                drvr, '_request_third_party_system_to_perform_some_task'),
             mock.patch.object(drvr.firewall_driver, 'setup_basic_filtering'),
             mock.patch.object(drvr.firewall_driver, 'prepare_instance_filter'),
             mock.patch.object(drvr.firewall_driver, 'apply_instance_filter')):
@@ -16895,6 +16932,99 @@ class LibvirtConnTestCase(test.NoDBTestCase,
 
         the_test()
 
+    def _test_create_with_third_party_events_generation(self, third_party_fail=None):
+        events_generated = []
+
+        def wait_timeout():
+            event = mock.MagicMock()
+            if third_party_fail == 'timeout':
+                raise eventlet.timeout.Timeout()
+            elif third_party_fail == 'error':
+                event.status = 'failed'
+            else:
+                event.status = 'completed'
+            return event
+
+        def fake_prepare(instance, name, tag=None):
+            mObj = mock.MagicMock()
+            mObj.instance = instance
+            mObj.event_name = '%s-%s' % (name, tag)
+            mObj.wait.side_effect = wait_timeout
+            events_generated.append(mObj)
+            return mObj
+
+        virtapi = manager.ComputeVirtAPI(mock.MagicMock())
+        prepare = virtapi._compute.instance_events.prepare_for_instance_event
+        prepare.side_effect = fake_prepare
+        drvr = libvirt_driver.LibvirtDriver(virtapi, False)
+        vifs = [{'id': uuids.vif_1, 'active': False},
+                {'id': uuids.vif_2, 'active': False}]
+
+        instance = objects.Instance(vm_state=vm_states.BUILDING,
+                                    **self.test_instance)
+
+        @mock.patch.object(drvr, 'pause')
+        @mock.patch.object(libvirt_driver.LibvirtDriver,
+                           '_create_domain_and_network')
+        @mock.patch.object(drvr, 'plug_vifs')
+        @mock.patch.object(drvr, 'firewall_driver')
+        @mock.patch.object(drvr, '_create_domain')
+        @mock.patch.object(drvr, 'cleanup')
+        def test_create(cleanup, create, fw_driver, plug_vifs,
+                        mock_create_domain_and_network, mock_pause):
+
+            def fake_create_domain_and_network(
+                    context, xml, instance, network_info,
+                    block_device_info=None, power_on=True,
+                    vifs_already_plugged=False, post_xml_callback=None,
+                    destroy_disks_on_failure=False):
+                # The config disk should be created by this callback, so we
+                # need to execute it.
+                post_xml_callback()
+
+            mock_create_domain_and_network.side_effect = (
+                fake_create_domain_and_network)
+            guest = mock_create_domain_and_network.return_value
+            domain = (drvr._request_third_party_system_to_perform_some_task(
+                self.context, guest, instance, network_info=vifs))
+
+            pause = bool(drvr._get_third_party_api_system_events())
+
+            if pause:
+                domain.resume.assert_called_once_with()
+            if third_party_fail and CONF.custom_event_is_fatal:
+                cleanup.assert_called_once_with(self.context,
+                                                instance, network_info=vifs,
+                                                block_device_info=None)
+
+        test_create()
+
+        prepare.assert_has_calls([
+            mock.call(instance, 'custom-event', None)])
+
+    def test_create_with_third_party_events_generation_nowait(self):
+        self.flags(custom_event_timeout=0)
+        self._test_create_with_third_party_events_generation()
+
+    def test_create_with_third_party_events_generation_failed_nonfatal_timeout(self):
+        self.flags(custom_event_is_fatal=False)
+        self._test_create_with_third_party_events_generation(
+            third_party_fail='timeout')
+
+    def test_create_with_third_party_events_generation_failed_fatal_timeout(self):
+        self.assertRaises(exception.ThirdPartyAPIEventGenerationFailedException,
+                          self._test_create_with_third_party_events_generation,
+                          third_party_fail='timeout')
+
+    def test_create_with_third_party_events_generation_failed_nonfatal_error(self):
+        self.flags(custom_event_is_fatal=False)
+        self._test_create_with_third_party_events_generation(third_party_fail='error')
+
+    def test_create_with_third_party_events_generation_failed_fatal_error(self):
+        self.assertRaises(exception.ThirdPartyAPIEventGenerationFailedException,
+                          self._test_create_with_third_party_events_generation,
+                          third_party_fail='error')
+
     def test_cleanup_failed_start_no_guest(self):
         drvr = libvirt_driver.LibvirtDriver(mock.MagicMock(), False)
         with mock.patch.object(drvr, 'cleanup') as mock_cleanup:
@@ -17052,6 +17182,12 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             get_volume_config.assert_called_with(bdm['connection_info'],
                 {'bus': 'virtio', 'type': 'disk', 'dev': 'vdc'})
             volume_save.assert_called_once_with()
+
+    def test_get_third_party_api_system_events(self):
+        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
+        third_party_events = drvr._get_third_party_api_system_events()
+        self.assertEqual([('custom-event-generated', None)],
+                third_party_events)
 
     def test_get_neutron_events(self):
         drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)

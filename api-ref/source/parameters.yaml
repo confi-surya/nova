@@ -2505,8 +2505,10 @@ event_hostId:
 event_name:
   description: |
     The event name. A valid value is ``network-changed``, ``network-vif-plugged``,
-    ``network-vif-unplugged``, ``network-vif-deleted``, or ``volume-extended``.
+    ``network-vif-unplugged``, ``network-vif-deleted``, or ``volume-extended``
+    ``custom-event-generated``.
     The event name ``volume-extended`` is added since microversion ``2.51``.
+    The event name ``custome-event-generated``  is added since microveersion ``2.68``.
   in: body
   required: true
   type: string

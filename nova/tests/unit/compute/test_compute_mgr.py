@@ -3050,7 +3050,8 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
             objects.Instance(id=1, uuid=uuids.instance_1),
             objects.Instance(id=2, uuid=uuids.instance_2),
             objects.Instance(id=3, uuid=uuids.instance_3),
-            objects.Instance(id=4, uuid=uuids.instance_4)]
+            objects.Instance(id=4, uuid=uuids.instance_4),
+            objects.Instance(id=5, uuid=uuids.instance_5)]
         events = [
             objects.InstanceExternalEvent(name='network-changed',
                                           tag='tag1',
@@ -3064,6 +3065,9 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
             objects.InstanceExternalEvent(name='volume-extended',
                                           instance_uuid=uuids.instance_4,
                                           tag='tag4')]
+            objects.InstanceExternalEvent(name='custom-event-generated',
+                                          instance_uuid=uuids.instance_5,
+                                          tag='tag5')]
 
         @mock.patch.object(self.compute,
                            'extend_volume')
@@ -3077,8 +3081,9 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
             get_instance_nw_info.assert_called_once_with(self.context,
                                                          instances[0],
                                                          refresh_vif_id='tag1')
-            _process_instance_event.assert_called_once_with(instances[1],
-                                                            events[1])
+            _process_instance_event.assert_called_once_with(instances[4],
+                                                            events[4])
+            self.assertEqual(_process_instance_event.call_count, 2)
             _process_instance_vif_deleted_event.assert_called_once_with(
                 self.context, instances[2], events[2].tag)
             extend_volume.assert_called_once_with(
@@ -3102,6 +3107,7 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
             # and blow up with an InstanceNotFound error.
             objects.Instance(id=4, uuid=uuids.instance_4),
             objects.Instance(id=5, uuid=uuids.instance_5),
+            objects.Instance(id=6, uuid=uuids.instance_6),
         ]
         events = [
             objects.InstanceExternalEvent(name='network-changed',
@@ -3119,6 +3125,9 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
             objects.InstanceExternalEvent(name='volume-extended',
                                           instance_uuid=uuids.instance_5,
                                           tag='tag5'),
+            objects.InstanceExternalEvent(name='custom-event-generated',
+                                          instance_uuid=uuids.instance_6,
+                                          tag='tag6'),
         ]
 
         # Make sure all the four events are handled despite the exceptions in
@@ -3153,8 +3162,9 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
                                                    nw_info=[vif1])
             detach_interface.assert_called_once_with(self.context,
                                                      instances[1], vif2)
-            _process_instance_event.assert_called_once_with(instances[2],
-                                                            events[2])
+            _process_instance_event.assert_called_once_with(instances[5],
+                                                            events[5])
+            self.assertEqual(_process_instance_event.call_count, 2)
             obj_load_attr.assert_called_once_with('info_cache')
             bdm_get_by_vol_and_inst.assert_called_once_with(
                 self.context, 'tag5', instances[4].uuid)
@@ -6157,6 +6167,38 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
         # any calls.
         mock_prepspawn.assert_not_called()
         mock_failedspawn.assert_not_called()
+
+    @mock.patch.object(manager.ComputeManager, '_build_networks_for_instance')
+    @mock.patch.object(manager.ComputeManager, '_shutdown_instance')
+    @mock.patch.object(objects.Instance, 'save')
+    def test_resources_clean_up_after_failure_of_third_party_api(self,
+            mock_instance_save, mock_instance_shutdown,
+            mock_instance_build_network):
+        test_exception = exception.ThirdPartyAPIEventGenerationFailedException()
+        mock_instance_save.return_value = self.instance
+        mock_instance_build_network.return_value = self.network_info
+
+        def fake_launch():
+            raise test_exception
+
+        try:
+            with self.compute._build_resources(self.context, self.instance,
+                                               self.requested_networks,
+                                               self.security_groups,
+                                               self.image,
+                                               self.block_device_mapping):
+                fake_launch()
+        except Exception as e:
+            self.assertEqual(test_exception, e)
+
+        mock_instance_save.assert_called_once_with()
+        mock_instance_build_network.assert_called_once_with(self.context,
+                                           self.instance, self.requested_networks,
+                                           self.security_groups)
+        mock_instance_shutdown.assert_called_once_with(self.context, self.instance,
+                                              self.block_device_mapping,
+                                              self.requested_networks,
+                                              try_deallocate_networks=False)
 
     @mock.patch.object(virt_driver.ComputeDriver, 'failed_spawn_cleanup')
     @mock.patch.object(virt_driver.ComputeDriver, 'prepare_for_spawn')

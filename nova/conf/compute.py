@@ -170,6 +170,25 @@ Related options:
   ``vif_plugging_is_fatal`` is False, events should not be expected to
   arrive at all.
 """),
+    cfg.IntOpt('custom_event_generated_timeout',
+        default=300,
+        min=0,
+        help="""
+This is the timeout for 'custom-event-generated' event from Third party API
+message receiving.
+The number of seconds to wait for 'custom-event-generated' event to receive
+before continuation.
+"""),
+    cfg.BoolOpt('custom_event_generated_is_fatal',
+        default=True,
+        help="""
+Check and find if instance should boot or fail on custom-event-generated time
+threshold crossing.
+
+Value True: Instance will fail on custom-event-generated time threshold crossed
+Value False: Instance will resume booting after custom-event-generated time
+threshold crossed
+"""),
     cfg.StrOpt('injected_network_template',
         default=paths.basedir_def('nova/virt/interfaces.template'),
         help="""Path to '/etc/network/interfaces' template.

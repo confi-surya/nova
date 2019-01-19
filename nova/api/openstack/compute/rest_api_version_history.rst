@@ -860,3 +860,11 @@ following APIs to filter by changes before or equal to the resource
 
 Adds the ``volume_type`` parameter to ``block_device_mapping_v2``, which can
 be used to specify cinder ``volume_type`` when creating a server.
+
+2.68
+----
+
+Add ``custom-event-generated`` event to the ``os-server-external-events``
+API. This will be used by the any service when booting the instance.
+This will notify the Compute service to perform any necessary actions on
+the compute host.

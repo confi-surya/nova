@@ -2193,6 +2193,16 @@ class ComputeManager(manager.Manager):
             msg = _('Failed to allocate the network(s), not rescheduling.')
             raise exception.BuildAbortException(instance_uuid=instance.uuid,
                     reason=msg)
+        except (exception.ThirdPartyAPIEventGenerationFailedException) as e:
+            msg = _('Failed to complete third party operation on an instance')
+            LOG.exception(msg, instance=instance)
+            self._notify_about_instance_usage(context, instance,
+                    'create.error', fault=e)
+            compute_utils.notify_about_instance_create(context, instance,
+                    self.host, phase=fields.NotificationPhase.ERROR,
+                    exception=e, bdms=block_device_mapping)
+            raise exception.BuildAbortException(instance_uuid=instance.uuid,
+                    reason=msg)
         except (exception.FlavorDiskTooSmall,
                 exception.FlavorMemoryTooSmall,
                 exception.ImageNotActive,

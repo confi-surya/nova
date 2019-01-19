@@ -120,6 +120,10 @@ class RevokeCertFailure(NovaException):
     msg_fmt = _("Failed to revoke certificate for %(project_id)s")
 
 
+class ThirdPartyAPIEventGenerationFailedException(NovaException):
+    msg_fmt = _("Third party API event generation failed")
+
+
 class VirtualInterfaceCreateException(NovaException):
     msg_fmt = _("Virtual Interface creation failed")
 

@@ -208,3 +208,29 @@ class ServerExternalEventsTestV251(ServerExternalEventsTestV21):
         self.assertEqual(400, result['events'][1]['code'])
         self.assertEqual('failed', result['events'][1]['status'])
         self.assertEqual(207, code)
+
+@mock.patch('nova.objects.InstanceMappingList.get_by_instance_uuids',
+            fake_get_by_instance_uuids)
+@mock.patch('nova.objects.InstanceList.get_by_filters',
+            fake_get_by_filters)
+class ServerExternalEventsTestV262(ServerExternalEventsTestV21):
+    wsgi_api_version = '2.68'
+
+    def test_create_custom_event_generated(self):
+        body = {'events': [{
+            'code': 200, 'name': 'custom-event-generated',
+            'server_uuid': fake_instance_uuids[1],
+            'status': 'completed'}]}
+        event = {'name': 'custom-event-generated', 'server_uuid': fake_instance_uuids[1]}
+        default_body = {'events': [event]}
+        result, code = self._assert_call(default_body,
+                                         [fake_instance_uuids[1]],
+                                         ['custom-event-generated'])
+        self.assertEqual(body, result)
+        self.assertEqual(200, code)
+
+    def test_create_some_unknown_events(self):
+        event = {'name': 'custom-event-generated'}
+        body = {'events': event}
+        self.assertRaises(self.invalid_error,
+                          self.api.create, self.req, body=body)
